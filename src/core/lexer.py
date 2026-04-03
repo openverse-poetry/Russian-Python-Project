@@ -630,34 +630,6 @@ class RussianLexer:
                 self.tokens.append(token)
                 continue
             
-            # Префиксы строк (f, r, fr, rf)
-            if char.lower() == 'f' and self._peek(1) in '"\'':
-                self._advance()  # пропускаем 'f' или 'F'
-                quote = self._advance()  # кавычка
-                token = self._read_string(quote, is_fstring=True)
-                self.tokens.append(token)
-                continue
-            
-            if char.lower() == 'r' and self._peek(1) in '"\'':
-                # Проверяем на комбинации fr или rf
-                next_char = self._peek(1).lower()
-                if next_char == 'f':
-                    self._advance()  # пропускаем 'r'
-                    self._advance()  # пропускаем 'f'
-                    quote = self._advance()
-                    token = self._read_string(quote, is_fstring=True)
-                elif next_char in '"\'':
-                    self._advance()  # пропускаем 'r'
-                    quote = self._advance()
-                    token = self._read_string(quote, is_fstring=False)
-                else:
-                    # Это идентификатор начинающийся с 'r'
-                    token = self._read_identifier()
-                    self.tokens.append(token)
-                    continue
-                self.tokens.append(token)
-                continue
-            
             # Числа
             if char.isdigit():
                 token = self._read_number()

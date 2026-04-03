@@ -521,7 +521,7 @@ class RussianParser:
         if self._match(TokenType.ОТСТУП):
             self._advance()
         
-        while self._current() and not self._match(TokenType.DEDENT, TokenType.ИНАЧЕ, TokenType.КОНЕЦ_ФАЙЛА):
+        while self._current() and not self._match(TokenType.ДEDENT, TokenType.ИНАЧЕ, TokenType.КОНЕЦ_ФАЙЛА):
             stmt = self._parse_statement()
             if stmt:
                 statements.append(stmt)
@@ -529,7 +529,7 @@ class RussianParser:
                 break
         
         # Закрываем блок с DEDENT
-        if self._match(TokenType.DEDENT):
+        if self._match(TokenType.ДEDENT):
             self._advance()
         
         return statements
@@ -590,7 +590,7 @@ class RussianParser:
             value = float(token.value) if '.' in token.value else int(token.value)
             return Number(value=value, raw=token.value, line=token.line)
         
-        elif token.type == TokenType.СТРОКА:
+        elif token.type == TokenType.СТРОКА or token.type == TokenType.F_STRING:
             self._advance()
             return String(value=token.value, line=token.line)
         
