@@ -1,0 +1,11 @@
+ply>=3.11
+pymorphy2>=0.9.1
+pymorphy2-dicts-ru>=2.4
+click>=8.0.0
+rich>=12.0.0
+
+[dev]
+pytest>=7.0.0
+black>=22.0.0
+flake8>=4.0.0
+mypy>=0.950

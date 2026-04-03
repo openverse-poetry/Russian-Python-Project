@@ -8,36 +8,101 @@
 - Совместимость с экосистемой Python
 - Лексер, парсер, транслятор в Python AST
 - Поддержка функций, классов, условий, циклов, исключений
+- Интерпретатор с поддержкой базовых операций
+- CLI интерфейс и REPL режим
 
 ## Установка
 
+### Вариант 1: Установка как Python пакета (рекомендуется)
+
 ```bash
-pip install -r requirements.txt
+pip install -e .
 ```
+
+После установки доступна команда `ruspython` в терминале.
+
+### Вариант 2: Запуск через Python
+
+```bash
+python ruspython.py --help
+```
+
+### Вариант 3: Создание отдельного исполняемого файла
+
+```bash
+# Для Linux/Mac
+./build.sh
+
+# Для Windows (PowerShell)
+pyinstaller --onefile --name ruspython ruspython.py
+```
+
+Исполняемый файл будет создан в папке `dist/`.
 
 ## Использование
 
 ```bash
-# Токенизация
-python src/core/lexer.py
+# Выполнение файла
+ruspython examples/hello.ру
 
-# Парсинг
-python src/core/parser.py
+# Показать токены
+ruspython --tokens examples/hello.ру
 
-# Трансляция
-python src/backend/translator.py
+# Показать AST дерево
+ruspython --ast examples/hello.ру
+
+# REPL режим (интерактивная консоль)
+ruspython --repl
+
+# Справка
+ruspython --help
 ```
 
-## Пример
+## Пример программы
 
 ```русский
+# Пример программы на русском языке
 функция привет(имя):
     печать(f"Привет, {имя}!")
+    
     если имя == "Мир":
         возврат истина
     иначе:
         возврат ложь
+
+для i в диапазон(10):
+    если i % 2 == 0:
+        печать(i)
+
+привет("Разработчик")
 ```
+
+## Структура проекта
+
+```
+/workspace
+├── ruspython.py          # Точка входа приложения
+├── pyproject.toml        # Конфигурация сборки
+├── build.sh              # Скрипт сборки исполняемого файла
+├── src/
+│   ├── __init__.py       # Основной модуль
+│   ├── core/
+│   │   ├── lexer.py      # Лексический анализатор
+│   │   └── parser.py     # Синтаксический анализатор (AST)
+│   ├── backend/
+│   │   └── translator.py # Транслятор в Python код
+│   ├── runtime/
+│   │   └── interpreter.py# Интерпретатор
+│   └── cli/
+│       └── main.py       # CLI интерфейс
+└── examples/
+    └── hello.ру          # Пример программы
+```
+
+## Требования
+
+- Python 3.8+
+- Зависимости указаны в `requirements.txt`
 
 ## Лицензия
 
