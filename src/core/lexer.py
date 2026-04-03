@@ -352,7 +352,7 @@ class RussianLexer:
             )
         return None
     
-    def _read_string(self, quote: str) -> Token:
+    def _read_string(self, quote: str, is_fstring: bool = False) -> Token:
         """Чтение строкового литерала."""
         start_line = self.line
         start_col = self.column
@@ -414,7 +414,7 @@ class RussianLexer:
             string_value,
             start_line,
             start_col,
-            extra={'triple': triple, 'quote': quote}
+            extra={'triple': triple, 'quote': quote, 'is_fstring': is_fstring}
         )
     
     def _read_number(self) -> Token:
@@ -622,10 +622,38 @@ class RussianLexer:
                     self.tokens.append(comment)
                 continue
             
-            # Строки
+            # Строки (включая f-строки, r-строки)
             if char in '"\'':
                 self._advance()
                 token = self._read_string(char)
+                self.tokens.append(token)
+                continue
+            
+            # Префиксы строк (f, r, fr, rf)
+            if char.lower() == 'f' and self._peek(1) in '"\'':
+                self._advance()  # пропускаем 'f' или 'F'
+                quote = self._advance()  # кавычка
+                token = self._read_string(quote, is_fstring=True)
+                self.tokens.append(token)
+                continue
+            
+            if char.lower() == 'r' and self._peek(1) in '"\'':
+                # Проверяем на комбинации fr или rf
+                next_char = self._peek(1).lower()
+                if next_char == 'f':
+                    self._advance()  # пропускаем 'r'
+                    self._advance()  # пропускаем 'f'
+                    quote = self._advance()
+                    token = self._read_string(quote, is_fstring=True)
+                elif next_char in '"\'':
+                    self._advance()  # пропускаем 'r'
+                    quote = self._advance()
+                    token = self._read_string(quote, is_fstring=False)
+                else:
+                    # Это идентификатор начинающийся с 'r'
+                    token = self._read_identifier()
+                    self.tokens.append(token)
+                    continue
                 self.tokens.append(token)
                 continue
             

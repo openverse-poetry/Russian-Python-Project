@@ -517,12 +517,20 @@ class RussianParser:
         """Парсинг блока кода."""
         statements = []
         
-        while self._current() and not self._match(TokenType.ИНАЧЕ, TokenType.ВОЗВРАТ):
+        # Ожидаем ОТСТУП после двоеточия
+        if self._match(TokenType.ОТСТУП):
+            self._advance()
+        
+        while self._current() and not self._match(TokenType.DEDENT, TokenType.ИНАЧЕ, TokenType.КОНЕЦ_ФАЙЛА):
             stmt = self._parse_statement()
             if stmt:
                 statements.append(stmt)
             else:
                 break
+        
+        # Закрываем блок с DEDENT
+        if self._match(TokenType.DEDENT):
+            self._advance()
         
         return statements
     
