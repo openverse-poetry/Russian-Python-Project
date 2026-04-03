@@ -11,6 +11,13 @@
 - std.json: Парсинг JSON
 - std.color: Цветной вывод
 - std.assert: Проверки и тесты
+- std.crypto: Криптография и кодирование
+- std.http: HTTP запросы
+- std.csv: Работа с CSV файлами
+- std.path: Утилиты путей
+- std.validate: Валидация данных
+- std.func: Функциональные утилиты
+- std.data: Структуры данных (стек, очередь, дек)
 """
 
 import os
@@ -20,9 +27,19 @@ import random
 import time
 import json
 import re
-from datetime import datetime
-from typing import Any, List, Dict, Union, Optional, Callable
+import hashlib
+import base64
+import hmac
+import urllib.request
+import urllib.parse
+import urllib.error
+import csv
+import io as python_io
+from datetime import datetime, timedelta
+from typing import Any, List, Dict, Union, Optional, Callable, Tuple
 from pathlib import Path
+from collections import deque
+from functools import reduce, partial, wraps
 
 # ==============================================================================
 # ВСПОМОГАТЕЛЬНЫЕ ТИПЫ И ОШИБКИ
@@ -36,6 +53,15 @@ class FileError(LibraryError):
     pass
 
 class JsonError(LibraryError):
+    pass
+
+class CryptoError(LibraryError):
+    pass
+
+class HttpError(LibraryError):
+    pass
+
+class ValidationError(LibraryError):
     pass
 
 # ==============================================================================
@@ -833,6 +859,692 @@ class StdAssert:
             raise AssertionError(f"Ожидалось {exception_type}, получено {type(e)}: {e}")
 
 # ==============================================================================
+# STD.CRYPTO - КРИПТОГРАФИЯ И КОДИРОВАНИЕ
+# ==============================================================================
+
+class StdCrypto:
+    @staticmethod
+    def md5(text: str) -> str:
+        """Вычисляет MD5 хеш строки."""
+        return hashlib.md5(text.encode('utf-8')).hexdigest()
+    
+    @staticmethod
+    def sha1(text: str) -> str:
+        """Вычисляет SHA1 хеш строки."""
+        return hashlib.sha1(text.encode('utf-8')).hexdigest()
+    
+    @staticmethod
+    def sha256(text: str) -> str:
+        """Вычисляет SHA256 хеш строки."""
+        return hashlib.sha256(text.encode('utf-8')).hexdigest()
+    
+    @staticmethod
+    def sha512(text: str) -> str:
+        """Вычисляет SHA512 хеш строки."""
+        return hashlib.sha512(text.encode('utf-8')).hexdigest()
+    
+    @staticmethod
+    def hmac_sha256(message: str, key: str) -> str:
+        """Вычисляет HMAC-SHA256."""
+        return hmac.new(key.encode('utf-8'), message.encode('utf-8'), hashlib.sha256).hexdigest()
+    
+    @staticmethod
+    def base64_encode(data: Union[str, bytes]) -> str:
+        """Кодирует в Base64."""
+        if isinstance(data, str):
+            data = data.encode('utf-8')
+        return base64.b64encode(data).decode('utf-8')
+    
+    @staticmethod
+    def base64_decode(data: str) -> str:
+        """Декодирует из Base64."""
+        return base64.b64decode(data.encode('utf-8')).decode('utf-8')
+    
+    @staticmethod
+    def base64_url_encode(data: Union[str, bytes]) -> str:
+        """Кодирует в URL-safe Base64."""
+        if isinstance(data, str):
+            data = data.encode('utf-8')
+        return base64.urlsafe_b64encode(data).decode('utf-8')
+    
+    @staticmethod
+    def base64_url_decode(data: str) -> str:
+        """Декодирует из URL-safe Base64."""
+        return base64.urlsafe_b64decode(data.encode('utf-8')).decode('utf-8')
+    
+    @staticmethod
+    def hex_encode(data: Union[str, bytes]) -> str:
+        """Кодирует в HEX."""
+        if isinstance(data, str):
+            data = data.encode('utf-8')
+        return data.hex()
+    
+    @staticmethod
+    def hex_decode(hex_str: str) -> str:
+        """Декодирует из HEX."""
+        return bytes.fromhex(hex_str).decode('utf-8')
+    
+    @staticmethod
+    def generate_token(length: int = 32) -> str:
+        """Генерирует случайный токен."""
+        import secrets
+        return secrets.token_hex(length)
+    
+    @staticmethod
+    def secure_compare(a: str, b: str) -> bool:
+        """Безопасное сравнение строк (защита от timing attack)."""
+        return hmac.compare_digest(a, b)
+
+# ==============================================================================
+# STD.HTTP - HTTP ЗАПРОСЫ
+# ==============================================================================
+
+class StdHttp:
+    @staticmethod
+    def get(url: str, headers: Dict[str, str] = None, timeout: int = 30) -> Dict[str, Any]:
+        """Выполняет GET запрос."""
+        try:
+            req = urllib.request.Request(url)
+            if headers:
+                for key, value in headers.items():
+                    req.add_header(key, value)
+            with urllib.request.urlopen(req, timeout=timeout) as response:
+                return {
+                    "status": response.status,
+                    "headers": dict(response.headers),
+                    "body": response.read().decode('utf-8')
+                }
+        except urllib.error.HTTPError as e:
+            raise HttpError(f"HTTP ошибка: {e.code} - {e.reason}")
+        except urllib.error.URLError as e:
+            raise HttpError(f"Ошибка соединения: {e.reason}")
+    
+    @staticmethod
+    def post(url: str, data: Union[Dict[str, Any], str] = None, 
+             headers: Dict[str, str] = None, timeout: int = 30) -> Dict[str, Any]:
+        """Выполняет POST запрос."""
+        try:
+            if isinstance(data, dict):
+                data = urllib.parse.urlencode(data).encode('utf-8')
+            elif isinstance(data, str):
+                data = data.encode('utf-8')
+            
+            req = urllib.request.Request(url, data=data, method='POST')
+            if headers:
+                for key, value in headers.items():
+                    req.add_header(key, value)
+            else:
+                req.add_header('Content-Type', 'application/x-www-form-urlencoded')
+            
+            with urllib.request.urlopen(req, timeout=timeout) as response:
+                return {
+                    "status": response.status,
+                    "headers": dict(response.headers),
+                    "body": response.read().decode('utf-8')
+                }
+        except urllib.error.HTTPError as e:
+            raise HttpError(f"HTTP ошибка: {e.code} - {e.reason}")
+        except urllib.error.URLError as e:
+            raise HttpError(f"Ошибка соединения: {e.reason}")
+    
+    @staticmethod
+    def download(url: str, save_path: str, timeout: int = 30) -> bool:
+        """Скачивает файл по URL."""
+        try:
+            urllib.request.urlretrieve(url, save_path)
+            return True
+        except Exception as e:
+            raise HttpError(f"Ошибка загрузки: {e}")
+    
+    @staticmethod
+    def url_encode(data: Union[str, Dict]) -> str:
+        """Кодирует данные для URL."""
+        if isinstance(data, dict):
+            return urllib.parse.urlencode(data)
+        return urllib.parse.quote(data)
+    
+    @staticmethod
+    def url_decode(url_str: str) -> Dict[str, str]:
+        """Декодирует параметры из URL."""
+        parsed = urllib.parse.urlparse(url_str)
+        return dict(urllib.parse.parse_qsl(parsed.query))
+    
+    @staticmethod
+    def parse_url(url: str) -> Dict[str, Any]:
+        """Парсит URL на компоненты."""
+        parsed = urllib.parse.urlparse(url)
+        return {
+            "scheme": parsed.scheme,
+            "netloc": parsed.netloc,
+            "path": parsed.path,
+            "params": parsed.params,
+            "query": parsed.query,
+            "fragment": parsed.fragment
+        }
+
+# ==============================================================================
+# STD.CSV - РАБОТА С CSV ФАЙЛАМИ
+# ==============================================================================
+
+class StdCsv:
+    @staticmethod
+    def read_file(path: str, delimiter: str = ',', has_header: bool = True) -> List[Dict[str, Any]]:
+        """Читает CSV файл в список словарей."""
+        result = []
+        with open(path, 'r', encoding='utf-8', newline='') as f:
+            reader = csv.DictReader(f, delimiter=delimiter) if has_header else csv.reader(f, delimiter=delimiter)
+            if has_header:
+                for row in reader:
+                    result.append(dict(row))
+            else:
+                for row in reader:
+                    result.append(row)
+        return result
+    
+    @staticmethod
+    def write_file(path: str, data: List[Dict[str, Any]], delimiter: str = ',', 
+                   include_header: bool = True) -> bool:
+        """Записывает список словарей в CSV файл."""
+        if not data:
+            return False
+        fieldnames = list(data[0].keys())
+        with open(path, 'w', encoding='utf-8', newline='') as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames, delimiter=delimiter)
+            if include_header:
+                writer.writeheader()
+            writer.writerows(data)
+        return True
+    
+    @staticmethod
+    def from_string(csv_str: str, delimiter: str = ',') -> List[List[str]]:
+        """Парсит CSV строку в список списков."""
+        reader = csv.reader(python_io.StringIO(csv_str), delimiter=delimiter)
+        return [row for row in reader]
+    
+    @staticmethod
+    def to_string(data: List[List[str]], delimiter: str = ',') -> str:
+        """Конвертирует список списков в CSV строку."""
+        output = python_io.StringIO()
+        writer = csv.writer(output, delimiter=delimiter)
+        writer.writerows(data)
+        return output.getvalue()
+
+# ==============================================================================
+# STD.PATH - УТИЛИТЫ ПУТЕЙ
+# ==============================================================================
+
+class StdPath:
+    @staticmethod
+    def join(*parts) -> str:
+        """Объединяет части пути."""
+        return os.path.join(*parts)
+    
+    @staticmethod
+    def normalize(path: str) -> str:
+        """Нормализует путь."""
+        return os.path.normpath(path)
+    
+    @staticmethod
+    def absolute(path: str) -> str:
+        """Возвращает абсолютный путь."""
+        return os.path.abspath(path)
+    
+    @staticmethod
+    def relative(path: str, start: str = None) -> str:
+        """Возвращает относительный путь."""
+        return os.path.relpath(path, start)
+    
+    @staticmethod
+    def dirname(path: str) -> str:
+        """Возвращает директорию пути."""
+        return os.path.dirname(path)
+    
+    @staticmethod
+    def basename(path: str) -> str:
+        """Возвращает имя файла/папки."""
+        return os.path.basename(path)
+    
+    @staticmethod
+    def extension(path: str) -> str:
+        """Возвращает расширение файла."""
+        return os.path.splitext(path)[1]
+    
+    @staticmethod
+    def filename_without_ext(path: str) -> str:
+        """Возвращает имя файла без расширения."""
+        return os.path.splitext(os.path.basename(path))[0]
+    
+    @staticmethod
+    def exists(path: str) -> bool:
+        """Проверяет существование пути."""
+        return os.path.exists(path)
+    
+    @staticmethod
+    def is_file(path: str) -> bool:
+        """Проверяет, является ли путь файлом."""
+        return os.path.isfile(path)
+    
+    @staticmethod
+    def is_dir(path: str) -> bool:
+        """Проверяет, является ли путь директорией."""
+        return os.path.isdir(path)
+    
+    @staticmethod
+    def is_absolute(path: str) -> bool:
+        """Проверяет, является ли путь абсолютным."""
+        return os.path.isabs(path)
+    
+    @staticmethod
+    def split(path: str) -> Tuple[str, str]:
+        """Разделяет путь на директорию и имя."""
+        return os.path.split(path)
+    
+    @staticmethod
+    def split_ext(path: str) -> Tuple[str, str]:
+        """Разделяет путь на имя и расширение."""
+        return os.path.splitext(path)
+    
+    @staticmethod
+    def walk(directory: str) -> List[Tuple[str, List[str], List[str]]]:
+        """Обходит дерево директорий."""
+        result = []
+        for root, dirs, files in os.walk(directory):
+            result.append((root, dirs, files))
+        return result
+    
+    @staticmethod
+    def glob(pattern: str) -> List[str]:
+        """Находит файлы по шаблону."""
+        import glob as glob_module
+        return glob_module.glob(pattern)
+
+# ==============================================================================
+# STD.VALIDATE - ВАЛИДАЦИЯ ДАННЫХ
+# ==============================================================================
+
+class StdValidate:
+    @staticmethod
+    def is_email(value: str) -> bool:
+        """Проверяет, является ли строка email."""
+        pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+        return bool(re.match(pattern, value))
+    
+    @staticmethod
+    def is_url(value: str) -> bool:
+        """Проверяет, является ли строка URL."""
+        pattern = r'^https?://[^\s]+$'
+        return bool(re.match(pattern, value))
+    
+    @staticmethod
+    def is_ip(value: str) -> bool:
+        """Проверяет, является ли строка IP адресом."""
+        pattern = r'^(\d{1,3}\.){3}\d{1,3}$'
+        if not re.match(pattern, value):
+            return False
+        parts = value.split('.')
+        return all(0 <= int(p) <= 255 for p in parts)
+    
+    @staticmethod
+    def is_phone(value: str) -> bool:
+        """Проверяет, является ли строка телефоном."""
+        pattern = r'^\+?[\d\s\-()]{7,20}$'
+        return bool(re.match(pattern, value))
+    
+    @staticmethod
+    def is_date(value: str, format_str: str = "%Y-%m-%d") -> bool:
+        """Проверяет, является ли строка датой."""
+        try:
+            datetime.strptime(value, format_str)
+            return True
+        except ValueError:
+            return False
+    
+    @staticmethod
+    def is_numeric(value: Any) -> bool:
+        """Проверяет, является ли значение числом."""
+        return isinstance(value, (int, float)) and not isinstance(value, bool)
+    
+    @staticmethod
+    def is_integer(value: Any) -> bool:
+        """Проверяет, является ли значение целым числом."""
+        return isinstance(value, int) and not isinstance(value, bool)
+    
+    @staticmethod
+    def is_float(value: Any) -> bool:
+        """Проверяет, является ли значение числом с плавающей точкой."""
+        return isinstance(value, float)
+    
+    @staticmethod
+    def is_string(value: Any) -> bool:
+        """Проверяет, является ли значение строкой."""
+        return isinstance(value, str)
+    
+    @staticmethod
+    def is_boolean(value: Any) -> bool:
+        """Проверяет, является ли значение булевым."""
+        return isinstance(value, bool)
+    
+    @staticmethod
+    def is_list(value: Any) -> bool:
+        """Проверяет, является ли значение списком."""
+        return isinstance(value, list)
+    
+    @staticmethod
+    def is_dict(value: Any) -> bool:
+        """Проверяет, является ли значение словарем."""
+        return isinstance(value, dict)
+    
+    @staticmethod
+    def is_empty(value: Any) -> bool:
+        """Проверяет, является ли значение пустым."""
+        if value is None:
+            return True
+        if isinstance(value, (str, list, dict, tuple, set)):
+            return len(value) == 0
+        return False
+    
+    @staticmethod
+    def in_range(value: Union[int, float], min_val: Union[int, float], 
+                 max_val: Union[int, float], inclusive: bool = True) -> bool:
+        """Проверяет, находится ли значение в диапазоне."""
+        if inclusive:
+            return min_val <= value <= max_val
+        return min_val < value < max_val
+    
+    @staticmethod
+    def one_of(value: Any, allowed: List[Any]) -> bool:
+        """Проверяет, содержится ли значение в списке разрешенных."""
+        return value in allowed
+    
+    @staticmethod
+    def length(value: Union[str, list], min_len: int = None, max_len: int = None) -> bool:
+        """Проверяет длину строки или списка."""
+        l = len(value)
+        if min_len is not None and l < min_len:
+            return False
+        if max_len is not None and l > max_len:
+            return False
+        return True
+
+# ==============================================================================
+# STD.FUNC - ФУНКЦИОНАЛЬНЫЕ УТИЛИТЫ
+# ==============================================================================
+
+class StdFunc:
+    @staticmethod
+    def compose(*functions):
+        """Композиция функций (справа налево)."""
+        def composed(arg):
+            for func in reversed(functions):
+                arg = func(arg)
+            return arg
+        return composed
+    
+    @staticmethod
+    def pipe(*functions):
+        """Конвейер функций (слева направо)."""
+        def piped(arg):
+            for func in functions:
+                arg = func(arg)
+            return arg
+        return piped
+    
+    @staticmethod
+    def curry(func):
+        """Каррирование функции."""
+        def curried(*args, **kwargs):
+            if len(args) + len(kwargs) >= func.__code__.co_argcount:
+                return func(*args, **kwargs)
+            return lambda *a, **kw: curried(*(args + a), **{**kwargs, **kw})
+        return curried
+    
+    @staticmethod
+    def partial(func, *args, **kwargs):
+        """Частичное применение функции."""
+        return partial(func, *args, **kwargs)
+    
+    @staticmethod
+    def identity(x):
+        """Функция тождественности."""
+        return x
+    
+    @staticmethod
+    def constant(x):
+        """Функция константы."""
+        return lambda: x
+    
+    @staticmethod
+    def negate(predicate):
+        """Отрицание предиката."""
+        return lambda x: not predicate(x)
+    
+    @staticmethod
+    def memoize(func):
+        """Мемоизация функции."""
+        cache = {}
+        def memoized(*args):
+            if args not in cache:
+                cache[args] = func(*args)
+            return cache[args]
+        return memoized
+    
+    @staticmethod
+    def debounce(func, wait_seconds: float):
+        """Декоратор debouncing для функции."""
+        last_call = [0]
+        def debounced(*args, **kwargs):
+            now = time.time()
+            if now - last_call[0] >= wait_seconds:
+                last_call[0] = now
+                return func(*args, **kwargs)
+            return None
+        return debounced
+    
+    @staticmethod
+    def throttle(func, interval_seconds: float):
+        """Декоратор throttling для функции."""
+        last_call = [0]
+        def throttled(*args, **kwargs):
+            now = time.time()
+            if now - last_call[0] >= interval_seconds:
+                last_call[0] = now
+                return func(*args, **kwargs)
+            return None
+        return throttled
+    
+    @staticmethod
+    def retry(func, max_attempts: int = 3, delay: float = 1.0):
+        """Повторное выполнение функции при ошибке."""
+        def retried(*args, **kwargs):
+            last_error = None
+            for attempt in range(max_attempts):
+                try:
+                    return func(*args, **kwargs)
+                except Exception as e:
+                    last_error = e
+                    if attempt < max_attempts - 1:
+                        time.sleep(delay)
+            raise last_error
+        return retried
+
+# ==============================================================================
+# STD.DATA - СТРУКТУРЫ ДАННЫХ
+# ==============================================================================
+
+class Stack:
+    """Реализация стека (LIFO)."""
+    def __init__(self):
+        self._items = []
+    
+    def push(self, item):
+        self._items.append(item)
+        return self
+    
+    def pop(self):
+        return self._items.pop() if self._items else None
+    
+    def peek(self):
+        return self._items[-1] if self._items else None
+    
+    def is_empty(self) -> bool:
+        return len(self._items) == 0
+    
+    def size(self) -> int:
+        return len(self._items)
+    
+    def clear(self):
+        self._items.clear()
+        return self
+    
+    def to_list(self) -> list:
+        return self._items.copy()
+
+class Queue:
+    """Реализация очереди (FIFO)."""
+    def __init__(self):
+        self._items = deque()
+    
+    def enqueue(self, item):
+        self._items.append(item)
+        return self
+    
+    def dequeue(self):
+        return self._items.popleft() if self._items else None
+    
+    def front(self):
+        return self._items[0] if self._items else None
+    
+    def is_empty(self) -> bool:
+        return len(self._items) == 0
+    
+    def size(self) -> int:
+        return len(self._items)
+    
+    def clear(self):
+        self._items.clear()
+        return self
+    
+    def to_list(self) -> list:
+        return list(self._items)
+
+class Deque:
+    """Реализация двусторонней очереди."""
+    def __init__(self):
+        self._items = deque()
+    
+    def push_front(self, item):
+        self._items.appendleft(item)
+        return self
+    
+    def push_back(self, item):
+        self._items.append(item)
+        return self
+    
+    def pop_front(self):
+        return self._items.popleft() if self._items else None
+    
+    def pop_back(self):
+        return self._items.pop() if self._items else None
+    
+    def front(self):
+        return self._items[0] if self._items else None
+    
+    def back(self):
+        return self._items[-1] if self._items else None
+    
+    def is_empty(self) -> bool:
+        return len(self._items) == 0
+    
+    def size(self) -> int:
+        return len(self._items)
+    
+    def clear(self):
+        self._items.clear()
+        return self
+    
+    def to_list(self) -> list:
+        return list(self._items)
+
+class StdData:
+    """Фабрика структур данных."""
+    @staticmethod
+    def create_stack() -> Stack:
+        return Stack()
+    
+    @staticmethod
+    def create_queue() -> Queue:
+        return Queue()
+    
+    @staticmethod
+    def create_deque() -> Deque:
+        return Deque()
+    
+    @staticmethod
+    def create_linked_list():
+        class Node:
+            def __init__(self, value):
+                self.value = value
+                self.next = None
+        
+        class LinkedList:
+            def __init__(self):
+                self.head = None
+                self.size = 0
+            
+            def append(self, value):
+                new_node = Node(value)
+                if not self.head:
+                    self.head = new_node
+                else:
+                    current = self.head
+                    while current.next:
+                        current = current.next
+                    current.next = new_node
+                self.size += 1
+                return self
+            
+            def prepend(self, value):
+                new_node = Node(value)
+                new_node.next = self.head
+                self.head = new_node
+                self.size += 1
+                return self
+            
+            def remove(self, value):
+                if not self.head:
+                    return False
+                if self.head.value == value:
+                    self.head = self.head.next
+                    self.size -= 1
+                    return True
+                current = self.head
+                while current.next:
+                    if current.next.value == value:
+                        current.next = current.next.next
+                        self.size -= 1
+                        return True
+                    current = current.next
+                return False
+            
+            def contains(self, value) -> bool:
+                current = self.head
+                while current:
+                    if current.value == value:
+                        return True
+                    current = current.next
+                return False
+            
+            def to_list(self) -> list:
+                result = []
+                current = self.head
+                while current:
+                    result.append(current.value)
+                    current = current.next
+                return result
+        
+        return LinkedList()
+
+# ==============================================================================
 # РЕГИСТРАЦИЯ БИБЛИОТЕК
 # ==============================================================================
 
@@ -848,7 +1560,14 @@ def get_all_libraries():
         "sys": StdSys,
         "json": StdJson,
         "color": StdColor,
-        "assert": StdAssert
+        "assert": StdAssert,
+        "crypto": StdCrypto,
+        "http": StdHttp,
+        "csv": StdCsv,
+        "path": StdPath,
+        "validate": StdValidate,
+        "func": StdFunc,
+        "data": StdData
     }
 
 def get_library_functions():
@@ -917,7 +1636,30 @@ if __name__ == "__main__":
     except AssertionError as e:
         print(f"Assert Failed: {e}")
     
+    # Тест Crypto
+    print(f"\nCrypto SHA256: {StdCrypto.sha256('test')}")
+    print(f"Crypto Base64: {StdCrypto.base64_encode('hello')}")
+    
+    # Тест Validate
+    print(f"\nValidate Email: {StdValidate.is_email('test@example.com')}")
+    print(f"Validate URL: {StdValidate.is_url('https://example.com')}")
+    
+    # Тест Func
+    double = lambda x: x * 2
+    add_one = lambda x: x + 1
+    composed = StdFunc.compose(double, add_one)
+    print(f"\nFunc Compose (3): {composed(3)}")
+    
+    # Тест Data
+    stack = StdData.create_stack()
+    stack.push(1).push(2).push(3)
+    print(f"\nData Stack pop: {stack.pop()}")
+    
+    queue = StdData.create_queue()
+    queue.enqueue("a").enqueue("b")
+    print(f"Data Queue dequeue: {queue.dequeue()}")
+
     print("\n=== Все библиотеки загружены успешно! ===")
     funcs = get_library_functions()
     print(f"Всего доступно функций: {len(funcs)}")
-    print("Примеры ключей:", list(funcs.keys())[:10])
+    print("Примеры ключей:", list(funcs.keys())[:15])
