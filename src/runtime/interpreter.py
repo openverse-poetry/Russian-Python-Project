@@ -1,4 +1,5 @@
 # Русский Питон - Интерпретатор
+# Версия 1.1.0 - Полноценное исполнение AST
 from __future__ import annotations
 import sys
 sys.path.insert(0, '/workspace')
@@ -8,6 +9,11 @@ from src.core.parser import (
     Return, Assign, BinaryOp, Call, Identifier, Number, String,
     Boolean, ExpressionStatement, NodeType
 )
+
+
+class InterpreterError(Exception):
+    """Ошибка интерпретатора."""
+    pass
 
 
 class RussianInterpreter:
@@ -136,6 +142,38 @@ class RussianInterpreter:
                 self.variables[node.target.name] = item
             for stmt in node.body:
                 self.interpret(stmt)
+    
+    def _execute_ПОКА(self, node: While):
+        while self.interpret(node.test):
+            for stmt in node.body:
+                self.interpret(stmt)
+
+
+def run_ast(module: Module) -> RussianInterpreter:
+    """Запуск AST."""
+    interpreter = RussianInterpreter()
+    interpreter.interpret(module)
+    return interpreter
+
+
+def run_file(filepath: str) -> RussianInterpreter:
+    """Выполнение файла с полным циклом: токенизация -> парсинг -> исполнение."""
+    from src.core.lexer import RussianLexer
+    from src.core.parser import RussianParser
+    
+    with open(filepath, 'r', encoding='utf-8') as f:
+        source = f.read()
+    
+    lexer = RussianLexer(source, filepath)
+    tokens = lexer.tokenize()
+    
+    parser = RussianParser(tokens)
+    ast = parser.parse()
+    
+    interpreter = RussianInterpreter()
+    interpreter.interpret(ast)
+    
+    return interpreter
 
 
 def demo_interpret():
@@ -161,4 +199,36 @@ def demo_interpret():
 
 
 if __name__ == "__main__":
-    demo_interpret()
+    # Тест полного цикла
+    print("=== Тест полного цикла исполнения ===\n")
+    
+    test_code = '''
+функция привет(имя):
+    печать("Привет," + имя)
+    возврат истина
+
+для i в диапазон(5):
+    печать(i)
+
+привет("Мир")
+'''
+    
+    from src.core.lexer import RussianLexer
+    from src.core.parser import RussianParser
+    
+    lexer = RussianLexer(test_code)
+    tokens = lexer.tokenize()
+    
+    print(f"Токенов найдено: {len(tokens)}")
+    
+    parser = RussianParser(tokens)
+    ast = parser.parse()
+    
+    print("\n=== AST Дерево ===")
+    print(ast.print_tree())
+    
+    print("\n=== Исполнение ===")
+    interpreter = RussianInterpreter()
+    interpreter.interpret(ast)
+    
+    print("\n=== Готово ===")

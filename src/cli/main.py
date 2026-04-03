@@ -1,16 +1,18 @@
 # Русский Питон - CLI интерфейс
+# Версия 1.1.0 - Полноценное исполнение с обновлением
 from __future__ import annotations
 import sys
 import os
+import subprocess
 import argparse
 from pathlib import Path
 
 sys.path.insert(0, '/workspace')
 
 from src.core.lexer import RussianLexer, Token, TokenType
-from src.core.parser import Module, ASTPrinter
+from src.core.parser import Module, ASTPrinter, RussianParser
 from src.backend.translator import PythonTranslator
-from src.runtime.interpreter import RussianInterpreter
+from src.runtime.interpreter import RussianInterpreter, run_file
 
 
 def tokenize_file(filepath: str) -> list:
@@ -47,33 +49,56 @@ def parse_file(filepath: str) -> Module:
 
 
 def run_file(filepath: str):
-    """Выполнение файла."""
+    """Выполнение файла с полным циклом: токенизация -> парсинг -> исполнение."""
     print(f"Выполнение файла: {filepath}")
     
+    interpreter = run_file_impl(filepath)
+    
+    print("\n=== Выполнение завершено ===")
+
+
+def run_file_impl(filepath: str):
+    """Внутренняя функция выполнения файла."""
     with open(filepath, 'r', encoding='utf-8') as f:
         source = f.read()
     
     lexer = RussianLexer(source, filepath)
     tokens = lexer.tokenize()
     
-    print(f"Токенизация завершена. Найдено {len(tokens)} токенов.")
+    parser = RussianParser(tokens)
+    ast = parser.parse()
     
     interpreter = RussianInterpreter()
+    interpreter.interpret(ast)
     
-    print("\n=== Результат выполнения ===")
+    return interpreter
+
+
+def update_version():
+    """Обновление до новой версии через pip."""
+    print("Обновление Русский Питон до последней версии...")
+    print("Команда: pip install --upgrade ruspython\n")
     
-    for token in tokens:
-        if token.type == TokenType.ИДЕНТИФИКАТОР and token.value == "печать":
-            print("Найдена функция печать")
-        elif token.type == TokenType.СТРОКА:
-            print(f"Строка: {token.value}")
-        elif token.type == TokenType.ЧИСЛО:
-            print(f"Число: {token.value}")
+    try:
+        result = subprocess.run(
+            [sys.executable, "-m", "pip", "install", "--upgrade", "ruspython"],
+            capture_output=True,
+            text=True
+        )
+        
+        if result.returncode == 0:
+            print("✓ Успешно обновлено!")
+            print(result.stdout)
+        else:
+            print("✗ Ошибка обновления:")
+            print(result.stderr)
+    except Exception as e:
+        print(f"Ошибка: {e}")
 
 
 def repl():
-    """REPL режим."""
-    print("Русский Питон v1.0.0 - REPL режим")
+    """REPL режим с полным исполнением."""
+    print("Русский Питон v1.1.0 - REPL режим (полное исполнение)")
     print("Введите 'выход' для выхода\n")
     
     interpreter = RussianInterpreter()
@@ -91,8 +116,12 @@ def repl():
             lexer = RussianLexer(source, "<repl>")
             tokens = lexer.tokenize()
             
-            for token in tokens:
-                print(f"  {token}")
+            parser = RussianParser(tokens)
+            ast = parser.parse()
+            
+            result = interpreter.interpret(ast)
+            if result is not None:
+                print(result)
             
         except KeyboardInterrupt:
             print("\n")
@@ -109,18 +138,25 @@ def main():
 Примеры использования:
   ruspython examples/hello.ру       Выполнить файл
   ruspython --tokens hello.ру       Показать токены
-  ruspython --repl                  Запустить REPL
+  ruspython --ast hello.ру          Показать AST дерево
+  ruspython --repl                  Запустить REPL режим
+  ruspython --update                Обновить до новой версии
         """
     )
     
     parser.add_argument('file', nargs='?', help='Файл для выполнения')
     parser.add_argument('--tokens', '-t', action='store_true', help='Показать токены')
-    parser.add_argument('--ast', '-a', action='store_true', help='Показать AST')
+    parser.add_argument('--ast', '-a', action='store_true', help='Показать AST дерево')
     parser.add_argument('--translate', action='store_true', help='Транслировать в Python')
     parser.add_argument('--repl', '-r', action='store_true', help='Запустить REPL режим')
-    parser.add_argument('--version', '-v', action='version', version='Русский Питон 1.0.0')
+    parser.add_argument('--update', '-u', action='store_true', help='Обновить до новой версии')
+    parser.add_argument('--version', '-v', action='version', version='Русский Питон 1.1.0')
     
     args = parser.parse_args()
+    
+    if args.update:
+        update_version()
+        return
     
     if args.repl:
         repl()
@@ -143,7 +179,18 @@ def main():
             print(token)
     
     elif args.ast:
-        parse_file(filepath)
+        # Показываем AST с полным парсингом
+        with open(filepath, 'r', encoding='utf-8') as f:
+            source = f.read()
+        
+        lexer = RussianLexer(source, filepath)
+        tokens = lexer.tokenize()
+        
+        parser_obj = RussianParser(tokens)
+        ast = parser_obj.parse()
+        
+        print(f"\n=== AST Дерево ===")
+        print(ast.print_tree())
     
     elif args.translate:
         print("Трансляция в Python (в разработке)...")
