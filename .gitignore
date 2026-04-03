@@ -5,31 +5,6 @@ __pycache__/
 *.pyo
 *.pyd
 .Python
-env/
-venv/
-.venv/
-.ENV
-.venv.bak/
-pip-log.txt
-pip-delete-this-directory.txt
-.tox/
-.coverage
-.coverage.*
-.cache
-nosetests.xml
-coverage.xml
-*.cover
-*.log
-.git/modules/
-*.sublime-project
-*.sublime-workspace
-.project
-.pydevproject
-.idea/
-.vscode/
-
-# Distribution / packaging
-.Python
 build/
 develop-eggs/
 dist/
@@ -46,9 +21,38 @@ wheels/
 .installed.cfg
 *.egg
 
+# Virtual environments
+venv/
+.venv/
+env/
+ENV/
+
 # Testing
-.pytest_cache/
-.hypothesis/
-.coverage*
+.coverage
+coverage/
 htmlcov/
+.nosetests
+.pytest_cache/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*.tmp
+
+# Logs
+*.log
+
+# Environment variables
+.env
+.env.local
+*.env.*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# MyPy
+.mypy_cache/
 ```
