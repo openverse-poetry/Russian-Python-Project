@@ -1,3 +1,15 @@
-ply
-pymorphy2
-pymorphy2-dicts-ru
+# Основные зависимости
+ply>=3.11
+pymorphy2>=0.9.1
+pymorphy2-dicts-ru>=2.4
+
+# Тестирование
+pytest>=7.0.0
+pytest-cov>=4.0.0
+
+# Упаковка
+pyoxidizer>=0.23.0
+
+# Утилиты
+click>=8.0.0
+rich>=13.0.0
