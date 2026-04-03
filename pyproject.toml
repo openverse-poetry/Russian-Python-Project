@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ruspython"
-version = "1.0.0"
-description = "Русский Питон - язык программирования с русским синтаксисом"
+version = "1.1.0"
+description = "Русский Питон - язык программирования с русским синтаксисом (полноценный интерпретатор)"
 readme = "README.md"
 license = {text = "MIT"}
 authors = [
