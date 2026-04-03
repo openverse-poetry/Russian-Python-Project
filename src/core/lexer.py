@@ -81,6 +81,7 @@ class TokenType(Enum):
     # Литералы
     ЧИСЛО = auto()          # числовое значение
     СТРОКА = auto()         # строковое значение
+    F_STRING = auto()       # f-строка
     ИДЕНТИФИКАТОР = auto()  # имя переменной/функции
     
     # Операторы
@@ -629,44 +630,56 @@ class RussianLexer:
                 self.tokens.append(token)
                 continue
             
-            # Префиксы строк (f, r, fr, rf)
-            if char.lower() == 'f' and self._peek(1) in '"\'':
-                self._advance()  # пропускаем 'f' или 'F'
-                quote = self._advance()  # кавычка
-                token = self._read_string(quote, is_fstring=True)
-                self.tokens.append(token)
-                continue
-            
-            if char.lower() == 'r' and self._peek(1) in '"\'':
-                # Проверяем на комбинации fr или rf
-                next_char = self._peek(1).lower()
-                if next_char == 'f':
-                    self._advance()  # пропускаем 'r'
-                    self._advance()  # пропускаем 'f'
-                    quote = self._advance()
-                    token = self._read_string(quote, is_fstring=True)
-                elif next_char in '"\'':
-                    self._advance()  # пропускаем 'r'
-                    quote = self._advance()
-                    token = self._read_string(quote, is_fstring=False)
-                else:
-                    # Это идентификатор начинающийся с 'r'
-                    token = self._read_identifier()
-                    self.tokens.append(token)
-                    continue
-                self.tokens.append(token)
-                continue
-            
             # Числа
             if char.isdigit():
                 token = self._read_number()
                 self.tokens.append(token)
                 continue
             
-            # Идентификаторы и ключевые слова
+            # Идентификаторы, ключевые слова и ПРЕФИКСЫ СТРОК
             if char.isalpha() or char == '_' or ord(char) > 127:
-                token = self._read_identifier()
-                self.tokens.append(token)
+                start_pos = self.pos
+                start_line = self.line
+                start_col = self.column
+                
+                # Читаем потенциальный идентификатор/префикс
+                identifier = ""
+                while True:
+                    c = self._peek()
+                    if c.isalnum() or c == '_' or ord(c) > 127:
+                        identifier += self._advance()
+                    else:
+                        break
+                
+                # Проверяем, является ли это префиксом строки (f, r, b, u, fr, rf...)
+                # И стоит ли следом кавычка
+                lower_id = identifier.lower()
+                if lower_id in ['f', 'r', 'b', 'u', 'fr', 'rf', 'br', 'rb']:
+                    next_char = self._peek()
+                    if next_char in '"\'':
+                        # Это строка с префиксом!
+                        # Читаем строку
+                        self._advance() # Пропускаем кавычку
+                        string_token = self._read_string(next_char)
+                        
+                        # Модифицируем токен строки, добавляя префикс в value или extra
+                        # Для простоты пока просто меняем тип на F_STRING если есть f
+                        if 'f' in lower_id:
+                            string_token.type = TokenType.F_STRING
+                            string_token.extra['prefix'] = identifier
+                        
+                        self.tokens.append(string_token)
+                        continue
+                
+                # Если это не префикс строки, то это обычное ключевое слово или переменная
+                token_type = self.KEYWORDS.get(identifier.lower(), TokenType.ИДЕНТИФИКАТОР)
+                
+                self.tokens.append(Token(
+                    token_type,
+                    identifier,
+                    start_line,
+                    start_col
+                ))
                 continue
             
             # Двухсимвольные операторы
