@@ -1,0 +1,2 @@
+[console_scripts]
+ruspython = src.cli.main:main
