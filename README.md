@@ -39,6 +39,20 @@ pyinstaller --onefile --name ruspython ruspython.py
 
 Исполняемый файл будет создан в папке `dist/`.
 
+### Вариант 4: Запуск в Windows терминале
+
+В Windows доступен запуск через batch-файл:
+
+```cmd
+ruspython.bat examples/hello.ру
+ruspython.bat --tokens hello.ру
+ruspython.bat --repl
+ruspython.bat --help
+```
+
+Для удобства можно добавить директорию с `ruspython.bat` в PATH,
+либо использовать полный путь к файлу.
+
 ## Использование
 
 ```bash
