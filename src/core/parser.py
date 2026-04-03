@@ -381,7 +381,7 @@ class RussianParser:
         """Парсинг модуля."""
         module = Module(line=self._current().line if self._current() else 0)
         
-        while self._current():
+        while self._current() and not self._match(TokenType.КОНЕЦ_ФАЙЛА):
             stmt = self._parse_statement()
             if stmt:
                 module.body.append(stmt)
@@ -391,7 +391,12 @@ class RussianParser:
     def _parse_statement(self) -> Optional[ASTNode]:
         """Парсинг утверждения."""
         token = self._current()
-        if not token:
+        if not token or token.type == TokenType.КОНЕЦ_ФАЙЛА:
+            return None
+        
+        # Пропуск токенов НОВАЯ_СТРОКА
+        if token.type == TokenType.НОВАЯ_СТРОКА:
+            self._advance()
             return None
         
         if token.type == TokenType.ФУНКЦИЯ:
